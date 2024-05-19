@@ -15,6 +15,8 @@
 #' model emp
 #' @param critical_value integer: z/t value to test if a given fixed effect
 #' is significant
+#' @param alpha logical value: flag if the critical_value is a p value, glmer 
+#' and lmerTest only
 #' @param sampe_sizes vector of integers: sample sizes you want to test power
 #'of
 #' @param n_sim integer: number of simulations to run
@@ -32,7 +34,7 @@
 #'
 #' @export
 power_simulation <- function(model, data, simvar, fixed_effects,
-                             critical_value, steps, n_sim, confidence_level,
+                             critical_value, alpha = F, steps, n_sim, confidence_level,
                              safeguard = F, rnorm = F,
                              R2 = F, R2var, R2level, nCores){
 
@@ -56,7 +58,8 @@ power_simulation <- function(model, data, simvar, fixed_effects,
   if (safeguard == T){
     model_for_simulation <- prepare_safeguard_model(model,
                                                     confidence_level,
-                                                    critical_value)
+                                                    critical_value,
+                                                    alpha)
   } else {
     model_for_simulation <- model
   }
@@ -108,17 +111,22 @@ power_simulation <- function(model, data, simvar, fixed_effects,
     # repeat simulation n_sim times
     # store outcome in store_simulations
     # --> this is a list of vectors!!
-
+    
+    # explicit definition of the objects to export to the workers
+    necessary_objects <- c("n", "model", "data", "simvar", "fixed_effects", "critical_value", 
+                           "R2", "R2level", "R2var", "rnorm", "alpha", "prepare_rnorm_model", 
+                           "simulateDataset", "reset_contrasts", "update", "check_significance", 
+                           "get_depvar", "prepare_safeguard_model", "confidence_level", 
+                           "safeguard", "model_for_simulation")
     # magic cheating
     `%dopar%` <- foreach::`%dopar%`
     #okay now continue
     store_simulations <- suppressWarnings(foreach::foreach(iterators::icount(n_sim),
                                           .combine = "cbind",
-                                          .export=ls(envir=globalenv()),
-                                          .packages = c("lme4"),
-                                          .errorhandling = "remove") %dopar% {
+                                          .export= necessary_objects,
+                                          .packages = c("lme4")) %dopar% {
 
-
+                                    
                                    #------------------------------------#
                                    #------------------------------------#
                                    # IF RNORM MODEL: (only active if used in mixedpower1)
@@ -126,7 +134,8 @@ power_simulation <- function(model, data, simvar, fixed_effects,
                                      model_for_simulation <- prepare_rnorm_model(model,
                                                                                  data,
                                                                                  simvar,
-                                                                                 critical_value)
+                                                                                 critical_value,
+                                                                                 alpha)
                                    }
 
 
@@ -199,10 +208,12 @@ power_simulation <- function(model, data, simvar, fixed_effects,
                                    # --> store significance in specified vector
                                    if (R2 == F){
                                      to.store_simulations <- check_significance(model_final,
-                                                                                critical_value)
+                                                                                critical_value, 
+                                                                                alpha)
                                    } else {
                                      to.store_simulations <- check_significance(model_R2_final,
-                                                                                critical_value)
+                                                                                critical_value, 
+                                                                                alpha)
                                    }
 
 

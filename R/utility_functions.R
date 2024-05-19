@@ -16,11 +16,12 @@
 #' in data
 #' @param critical_value z/t value to test if a given fixed effect
 #' is significant
+#' @param alpha flag if the critical_value is a p value, glmer and lmerTest only
 #'
 #' @return A modified mixed model
 #'
 
-prepare_rnorm_model <- function(model, data, simvar, critical_value){
+prepare_rnorm_model <- function(model, data, simvar, critical_value, alpha){
 
   # --------------------------------------------------------- #
 
@@ -37,7 +38,7 @@ prepare_rnorm_model <- function(model, data, simvar, critical_value){
 
   ### prepare ###
   # --> this is a TRUE FALSE vector
-  significant_effects <- check_significance(model, critical_value)
+  significant_effects <- check_significance(model, critical_value, alpha)
 
 
 
@@ -96,17 +97,18 @@ prepare_rnorm_model <- function(model, data, simvar, critical_value){
 #' in the interval
 #' @param critical_value z/t value to test if a given fixed effect
 #' is significant
+#' @param alpha flag if the critical_value is a p value, glmer and lmerTest only
 #'
 #' @return A modified mixed model
 #'
 
-prepare_safeguard_model <- function(model, confidence_level, critical_value){
+prepare_safeguard_model <- function(model, confidence_level, critical_value, alpha){
 
   # ---------- prepare ------------------------ #
   # 1. check which effects are significant
 
   # --> this is a TRUE FALSE vector
-  significant_effects <- check_significance(model, critical_value)
+  significant_effects <- check_significance(model, critical_value, alpha)
 
   # 2. compute confidence intervals
 
@@ -205,7 +207,7 @@ reset_contrasts <- function(simulated_data, data, model, fixed_effects ) {
 
 # CHECK SIGNIFICANCE
 
-#' Gets t/z value out of model and compares it to a ctritical value
+#' Gets t/z value out of model and compares it to a critical value
 #'
 #' \code{check_significance()} checks the t/z value of all fixed effects and
 #' compares them to the specified critical value. Returns a logical vector
@@ -214,12 +216,12 @@ reset_contrasts <- function(simulated_data, data, model, fixed_effects ) {
 #'
 #' @param model mixed model you want to check
 #' @param critical_value t/z value you want to check against
+#' @param alpha flag if the critical_value is a p value, glmer and lmerTest only
 #'
 #' @return logical vector
 #'
 
-check_significance <- function(model, critical_value){
-
+check_significance <- function(model, critical_value, alpha=NULL){
   store_significance <- c()
 
   for (i in 1:length(fixef(model)[-1])){
@@ -241,32 +243,66 @@ check_significance <- function(model, critical_value){
 
     # what happens if model is a lmer?
     if (lme4::getME(model, "devcomp")$dims[["GLMM"]] == 0) {
+      
+      # check if critical value is a p value
+      if (!is.null(alpha) && alpha == TRUE){
+        
+        # check if the model has a p value (is built with lmerTest)
+        if (class(model)[1] != "lmerModLmerTest"){
+          stop("Argument alpha = TRUE is only valid for lmer models built with lmerTest")
+          }
+        
+        #... this: we need "Pr(>|t|)"
+        p_value <- abs(coef(summary(model))[row, "Pr(>|t|)"])
+        
+        # ------------ test against significance level ------- #
+        
+        # --> is either TRUE or FALSE (= 1 or 0)
+        is_significant <- (p_value < crit_val)
+        
+      } else{
 
 
-      #... this: we need "t value"
-      t_value <- abs(coef(summary(model))[row, "t value"])
+        #... this: we need "t value"
+        t_value <- abs(coef(summary(model))[row, "t value"])
+  
+  
+        # ------------ test against significance level ------- #
+  
+        # --> is either TRUE or FALSE (= 1 or 0)
+        is_significant <- (t_value >= crit_val)
 
-
-      # ------------ test aganist significance level ------- #
-
-      # --> is either TRUE or FALSE (= 1 or 0)
-      is_significant <- (t_value >= crit_val)
-
+      }
 
       # store significance
       store_significance <- c(store_significance, is_significant)
 
-
+      
       # what happens if model is a glmer?
     } else if (lme4::getME(model, "devcomp")$dims[["GLMM"]] == 1) {
+      
+      # check if critical value is a p value (lme4::glmer provides p values)
+      if (!is.null(alpha) && alpha == TRUE){
+        
+        #... this: we need "Pr(>|t|)"
+        p_value <- abs(coef(summary(model))[row, "Pr(>|z|)"])
+        
+        # ------------ test against significance level ------- #
+        
+        # --> is either TRUE or FALSE (= 1 or 0)
+        is_significant <- (p_value < crit_val)
+        
+      } else{
 
-      #... this: we need "z value"
-      z_value <- abs(coef(summary(model))[row, "z value"])
-
-      # ------------ test aganist significance level ------- #
-
-      # --> is either TRUE or FALSE (= 1 or 0)
-      is_significant <- (z_value >= crit_val)
+        #... this: we need "z value"
+        z_value <- abs(coef(summary(model))[row, "z value"])
+  
+        # ------------ test against significance level ------- #
+  
+        # --> is either TRUE or FALSE (= 1 or 0)
+        is_significant <- (z_value >= crit_val)
+        
+      }
 
       # store significance
       store_significance <- c(store_significance, is_significant)
@@ -457,6 +493,8 @@ keep_balance <- function(final_data, simvar, fixed_effects, n_want){
 #' model emp
 #' @param critical_value integer: z/t value to test if a given fixed effect
 #' is significant
+#' @param alpha logical value: flag if the critical_value is a p value, glmer 
+#' and lmerTest only
 #' @param sampe_sizes vector of integers: sample sizes you want to test power
 #'of
 #' @param n_sim integer: number of simulations to run
@@ -466,7 +504,7 @@ keep_balance <- function(final_data, simvar, fixed_effects, n_want){
 #' @param R2level integer: number of levels for R2var. Right now, the second
 
 check_input <- function(model, data, fixed_effects, simvar,
-                        steps, critical_value, n_sim,
+                        steps, critical_value, alpha, n_sim,
                         SESOI, R2, R2var, R2level){
 
 
@@ -501,6 +539,9 @@ check_input <- function(model, data, fixed_effects, simvar,
       & length(critical_value) != length(row.names(summary(model)$coefficients)[-1])){
     stop('"critical_value" needs to be of length 1 or contain as many values as effects in the model (including interactions).')
   }
+  
+  # --------- critical value ----- #
+  if (is.logical(alpha) == F){ stop('"alpha" needs to be a logical value (TRUE or FALSE).')}
 
   # --------- SESOI---- ----- #
   suppressWarnings(if(!is.logical(SESOI)

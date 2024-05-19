@@ -25,7 +25,10 @@
 #' of (e.g. different sample sizes)
 #' @param critical_value integer: z/t value to test if a given fixed effect
 #' is significant. This can be a single value or a vector containing specific
-#' critical values for each effect
+#' critical values for each effect. Can be an alpha value if the "alpha" flag
+#' is set to TRUE.
+#' @param alpha logical value: flag if the critical_value is a p value, glmer 
+#' and lmerTest only. FALSE by default.
 #' @param n_sim integer: number of simulations to run
 #' @param SESOI vector with floats´indicating the desired SESOIs.
 #' If FALSE, no SESOI simulation is run.
@@ -37,13 +40,13 @@
 #'
 #' @export
 mixedpower <- function(model, data, fixed_effects, simvar,
-                       steps, critical_value, n_sim = 1000,
+                       steps, critical_value, alpha = F, n_sim = 1000,
                        SESOI = F, databased = T, maxCores = NULL){
 
   # check input and return potential error messages
   R2 <- F
   data <- check_input(model, data, fixed_effects, simvar,
-              steps, critical_value, n_sim,
+              steps, critical_value, alpha, n_sim,
               SESOI, R2, R2var, R2level)
 
   # keep this so power_simulation function is compatible with mixedpower1 and mixedpower
@@ -66,7 +69,7 @@ mixedpower <- function(model, data, fixed_effects, simvar,
   # 1. databased
   if (databased == T){
     databased_power_values <- power_simulation(model, data, simvar, fixed_effects,
-                                                critical_value, steps, n_sim, confidence_level,
+                                                critical_value, alpha, steps, n_sim, confidence_level,
                                                 safeguard = F, rnorm = F,
                                                 R2 = F, R2var = 0, R2level = 0, nCores) # assign those parameters anyways to avoid crashing
 
@@ -87,7 +90,7 @@ mixedpower <- function(model, data, fixed_effects, simvar,
 
     # run SESOI power analysis
     SESOI_power_values <- power_simulation(model, data, simvar, fixed_effects,
-                                           critical_value, steps, n_sim, confidence_level,
+                                           critical_value, alpha, steps, n_sim, confidence_level,
                                            safeguard = F, rnorm = F,
                                            R2 = F, R2var = 0, R2level = 0, nCores) # assign those parameters anyways to avoid crashing
 
@@ -135,6 +138,8 @@ mixedpower <- function(model, data, fixed_effects, simvar,
 #' simvar
 #' @param critical_value integer: z/t value to test if a given fixed effect
 #' is significant
+#' @param alpha logical value: flag if the critical_value is a p value, glmer 
+#' and lmerTest only
 #' @param n_sim integer: number of simulations to run
 #' @param SESOI vector with floats´indicating the desired SESOIs.
 #' If FALSE, no SESOI simulation is run.
@@ -145,13 +150,13 @@ mixedpower <- function(model, data, fixed_effects, simvar,
 #'
 #' @export
 R2power <- function(model, data, fixed_effects, simvar,
-                    steps, R2var, R2level, critical_value,
+                    steps, R2var, R2level, critical_value, alpha = F,
                     n_sim = 1000, SESOI = F, databased = T, maxCores = NULL){
 
   # check input and return potential error messages
   R2 <- T
   data <- check_input(model, data, fixed_effects, simvar,
-              steps, critical_value, n_sim,
+              steps, critical_value, alpha, n_sim,
               SESOI, R2, R2var, R2level)
 
   # keep this so power_simulation function is compatible with mixedpower1 and mixedpower
@@ -175,7 +180,7 @@ R2power <- function(model, data, fixed_effects, simvar,
   # 1. databased
   if (databased == T){
     databased_power_values <- power_simulation(model, data, simvar, fixed_effects,
-                                               critical_value, steps, n_sim, confidence_level,
+                                               critical_value, alpha, steps, n_sim, confidence_level,
                                                safeguard = F, rnorm = F,
                                                R2 = T, R2var, R2level, nCores)
 
@@ -196,7 +201,7 @@ R2power <- function(model, data, fixed_effects, simvar,
 
     # run SESOI power analysis
     SESOI_power_values <- power_simulation(model, data, simvar, fixed_effects,
-                                           critical_value, steps, n_sim, confidence_level,
+                                           critical_value, alpha, steps, n_sim, confidence_level,
                                            safeguard = F, rnorm = F,
                                            R2 = T, R2var, R2level, nCores)
 
@@ -243,6 +248,8 @@ R2power <- function(model, data, fixed_effects, simvar,
 #' of
 #' @param critical_value integer: z/t value to test if a given fixed effect
 #' is significant
+#' @param alpha logical value: flag if the critical_value is a p value, glmer 
+#' and lmerTest only
 #' @param n_sim integer: number of simulations to run
 #' @param confidence_level float: value between 0-1 indicating the width of the
 #' confidence interval used for the safeguard option
@@ -256,7 +263,7 @@ R2power <- function(model, data, fixed_effects, simvar,
 #'
 #' @export
 mixedpowerSR <- function(model, data, fixed_effects, simvar,
-                        steps, critical_value, n_sim = 1000, confidence_level= 0.68,
+                        steps, critical_value, alpha = F, n_sim = 1000, confidence_level= 0.68,
                         databased = T, safeguard = F, rnorm = F){
 
 
@@ -271,7 +278,7 @@ mixedpowerSR <- function(model, data, fixed_effects, simvar,
   # 1. databased
   if (databased == T){
     databased_power_values <- power_simulation(model, data, simvar, fixed_effects,
-                                               critical_value, steps, n_sim, confidence_level,
+                                               critical_value, alpha, steps, n_sim, confidence_level,
                                                safeguard = F, rnorm = F)
 
     # store output
@@ -286,7 +293,7 @@ mixedpowerSR <- function(model, data, fixed_effects, simvar,
   # 2. safeguard
   if (safeguard == T){
     safeguard_power_values <- power_simulation(model, data, simvar, fixed_effects,
-                                               critical_value, steps, n_sim, confidence_level,
+                                               critical_value, alpha, steps, n_sim, confidence_level,
                                                safeguard = T, rnorm = F)
 
     safeguard_power_values["mode"] <- "safeguard"
@@ -300,7 +307,7 @@ mixedpowerSR <- function(model, data, fixed_effects, simvar,
   # 3. rnorm
   if (rnorm == T){
     rnorm_power_values <- power_simulation(model, data, simvar, fixed_effects,
-                                           critical_value, steps, n_sim, confidence_level,
+                                           critical_value, alpha, steps, n_sim, confidence_level,
                                            safeguard = F, rnorm = T)
 
     rnorm_power_values["mode"] <- "rnorm"
